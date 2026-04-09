@@ -330,6 +330,126 @@ const autoCreateJob = async (estimateId: string) => {
       }
     }
 
+    // ─── Create projects record (Financial Studio) ───────────────────
+    const { error: projErr } = await supabase
+      .from('projects')
+      .insert({
+        id: jobId,
+        project_name: est.project_name,
+        client_name: est.client_name,
+        contract_amount: est.total_contract_price || 0,
+        billed_amount: 0,
+        status: 'active',
+        description: est.project_address,
+      } as any);
+    if (projErr) {
+      console.error('Failed to create Financial Studio project:', projErr.message);
+    }
+
+    // ─── Create billing items (SOV) with 50/50 milestone splits ──────
+    const { data: tradesWithPrice } = await supabase
+      .from('estimate_trades')
+      .select('id, trade_name, trade_group, sort_order, total_price, total_materials_cost, total_labor_cost')
+      .eq('estimate_id', estimateId)
+      .eq('is_active', true)
+      .order('sort_order');
+
+    if (tradesWithPrice?.length) {
+      const billingRows: any[] = [];
+      let itemNum = 1;
+      const SPLIT_THRESHOLD = 2000;
+
+      // Always add Mobilization as item 1
+      const mobAmount = Math.min(Math.round((est.total_contract_price || 0) * 0.04), 1500);
+      if (mobAmount > 0) {
+        billingRows.push({
+          job_id: jobId,
+          item_number: itemNum++,
+          phase_name: 'Mobilization',
+          description: 'Mobilization to Job Site',
+          contract_amount: mobAmount,
+          total_paid: 0,
+          remaining_balance: mobAmount,
+          remaining_balance_pct: 100,
+          this_invoice: 0,
+          sort_order: 1,
+          status: 'not_started',
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      for (const trade of tradesWithPrice) {
+        const tradePrice = Number((trade as any).total_price || 0);
+        const matCost = Number((trade as any).total_materials_cost || 0);
+        if (tradePrice <= 0) continue;
+
+        const baseSort = ((trade as any).sort_order || 1) * 10;
+
+        if (tradePrice >= SPLIT_THRESHOLD) {
+          let materialsPct = matCost > 0 ? Math.min(Math.max(Math.round(matCost / tradePrice * 10) * 10, 30), 60) : 50;
+          const materialsAmt = Math.round(tradePrice * materialsPct / 100 * 100) / 100;
+          const completionAmt = Math.round((tradePrice - materialsAmt) * 100) / 100;
+
+          billingRows.push({
+            job_id: jobId,
+            item_number: itemNum++,
+            phase_name: (trade as any).trade_group || (trade as any).trade_name,
+            description: `${(trade as any).trade_name} — Materials & Start`,
+            contract_amount: materialsAmt,
+            total_paid: 0,
+            remaining_balance: materialsAmt,
+            remaining_balance_pct: 100,
+            this_invoice: 0,
+            sort_order: baseSort,
+            status: 'not_started',
+            updated_at: new Date().toISOString(),
+          });
+
+          billingRows.push({
+            job_id: jobId,
+            item_number: itemNum++,
+            phase_name: (trade as any).trade_group || (trade as any).trade_name,
+            description: `${(trade as any).trade_name} — Completion`,
+            contract_amount: completionAmt,
+            total_paid: 0,
+            remaining_balance: completionAmt,
+            remaining_balance_pct: 100,
+            this_invoice: 0,
+            sort_order: baseSort + 1,
+            status: 'not_started',
+            updated_at: new Date().toISOString(),
+          });
+        } else {
+          billingRows.push({
+            job_id: jobId,
+            item_number: itemNum++,
+            phase_name: (trade as any).trade_group || (trade as any).trade_name,
+            description: (trade as any).trade_name,
+            contract_amount: tradePrice,
+            total_paid: 0,
+            remaining_balance: tradePrice,
+            remaining_balance_pct: 100,
+            this_invoice: 0,
+            sort_order: baseSort,
+            status: 'not_started',
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      if (billingRows.length) {
+        const { error: billingErr } = await supabase
+          .from('billing_items')
+          .insert(billingRows);
+        if (billingErr) {
+          console.error('Failed to create billing items:', billingErr.message);
+        } else {
+          console.log(`Created ${billingRows.length} billing items (SOV) for job ${jobId}`);
+        }
+      }
+    }
+    // ─── End billing items ───────────────────────────────────────────
+
     // Link estimate to the new job
     await supabase
       .from('estimates')
