@@ -114,3 +114,17 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(42 52% 54%);
 }
+
+/* ─── No Gridlines — OCC Brand ─── */
+table td, table th {
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+}
+thead tr th {
+  border-bottom: none !important;
+}
+[class~="border-b"][class*="border-[rgba"] {
+  border-bottom-width: 0 !important;
+}

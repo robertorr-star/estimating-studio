@@ -101,6 +101,8 @@ export const generateContractHtml = (data: {
   payments: { number: number; amount: string; milestone: string }[];
   startDate: string;
   endDate: string;
+  scopeItems?: { tradeName: string; description: string; amount: string; costType: string }[];
+  estimateNumber?: string;
 }): string => {
   const paymentRows = data.payments.map(p =>
     `<tr>
@@ -204,6 +206,79 @@ The Contract Price is payable according to the following Schedule of Progress Pa
 <div class="footer">
   Orr Construction Company · License #1028720 · 1977 Obispo Ave., Signal Hill, CA 90755 · (562) 498-0224<br>
   <em>Note: Owner is entitled to a completely filled-in copy of this Agreement, signed by both parties, before any work may be started.</em>
+</div>
+
+${(data.scopeItems && data.scopeItems.length > 0) ? `
+<div style="page-break-before:always;padding:40px">
+  <h2 style="text-align:center;font-size:15px;text-decoration:underline;text-transform:uppercase;margin-bottom:20px">Exhibit A — Scope of Work</h2>
+  <p style="font-size:12px;margin-bottom:16px">This Exhibit A is incorporated by reference into the Construction Contract dated ${data.effectiveDate} between Orr Construction Company and ${data.ownerName} for the Project at ${data.projectAddress}.${data.estimateNumber ? ` Estimate #${data.estimateNumber}.` : ''}</p>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#1B4D1B;color:#C9A84C">
+      <th style="padding:8px 10px;text-align:left">Trade / Phase</th>
+      <th style="padding:8px 10px;text-align:left">Scope Description</th>
+      <th style="padding:8px 10px;text-align:left">Type</th>
+      <th style="padding:8px 10px;text-align:right">Amount</th>
+    </tr></thead>
+    <tbody>
+      ${data.scopeItems.map((item, i) => `<tr style="background:${i % 2 === 0 ? '#f9f9f7' : '#fff'}">
+        <td style="padding:7px 10px;font-weight:bold;font-size:11px">${item.tradeName}</td>
+        <td style="padding:7px 10px;font-size:11px">${item.description}</td>
+        <td style="padding:7px 10px;font-size:11px;color:#555">${item.costType}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:11px">${item.amount}</td>
+      </tr>`).join('')}
+      <tr style="background:#1B4D1B;color:#C9A84C;font-weight:bold">
+        <td colspan="3" style="padding:8px 10px;text-align:right;font-size:12px">Total Contract Price</td>
+        <td style="padding:8px 10px;text-align:right;font-size:13px">${data.contractPrice}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;margin-top:16px;color:#555;font-style:italic">This scope may be amended only by a written change order signed by both parties per Section 4 of the Agreement.</p>
+</div>` : ''}
+
+<div style="page-break-before:always;padding:40px">
+  <h2 style="text-align:center;font-size:15px;text-decoration:underline;text-transform:uppercase;margin-bottom:20px">Exhibit B — Schedule of Progress Payments</h2>
+  <p style="font-size:12px;margin-bottom:16px">Payment schedule for: ${data.projectAddress}. All payments due within 2 business days of written milestone notification from Orr.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#1B4D1B;color:#C9A84C">
+      <th style="padding:8px 10px;text-align:left">#</th>
+      <th style="padding:8px 10px;text-align:left">Milestone</th>
+      <th style="padding:8px 10px;text-align:right">Amount Due</th>
+      <th style="padding:8px 10px;text-align:center">Date Paid</th>
+      <th style="padding:8px 10px;text-align:center">Check #</th>
+    </tr></thead>
+    <tbody>
+      <tr style="background:#f9f9f7">
+        <td style="padding:7px 10px">1</td>
+        <td style="padding:7px 10px;font-weight:bold">DOWNPAYMENT — Due at Signing</td>
+        <td style="padding:7px 10px;text-align:right">${data.downpayment}</td>
+        <td style="padding:7px 10px;text-align:center;color:#aaa">____________</td>
+        <td style="padding:7px 10px;text-align:center;color:#aaa">____________</td>
+      </tr>
+      ${data.payments.map((p, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f7'}">
+        <td style="padding:7px 10px">${p.number}</td>
+        <td style="padding:7px 10px">Upon completion of: <strong>${p.milestone}</strong></td>
+        <td style="padding:7px 10px;text-align:right;font-weight:bold">${p.amount}</td>
+        <td style="padding:7px 10px;text-align:center;color:#aaa">____________</td>
+        <td style="padding:7px 10px;text-align:center;color:#aaa">____________</td>
+      </tr>`).join('')}
+      <tr style="background:#1B4D1B;color:#C9A84C;font-weight:bold">
+        <td colspan="2" style="padding:8px 10px;text-align:right">TOTAL CONTRACT PRICE</td>
+        <td style="padding:8px 10px;text-align:right;font-size:13px">${data.contractPrice}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:10px;margin-top:12px;color:#555;font-style:italic;text-transform:uppercase">IT IS AGAINST THE LAW FOR A CONTRACTOR TO COLLECT PAYMENT FOR WORK NOT YET COMPLETED, OR FOR MATERIALS NOT YET DELIVERED.</p>
+  <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <div>
+      <div style="border-top:1px solid #222;margin-top:40px;padding-top:6px;font-size:11px">Orr Construction Company</div>
+      <div style="border-top:1px solid #222;margin-top:20px;padding-top:6px;font-size:11px">Date</div>
+    </div>
+    <div>
+      <div style="border-top:1px solid #222;margin-top:40px;padding-top:6px;font-size:11px">${data.ownerName} (Owner)</div>
+      <div style="border-top:1px solid #222;margin-top:20px;padding-top:6px;font-size:11px">Date</div>
+    </div>
+  </div>
 </div>
 </body></html>`;
 };
