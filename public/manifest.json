@@ -1,0 +1,18 @@
+{
+  "name": "OCD Estimating Studio",
+  "short_name": "OCD Estimator",
+  "description": "Construction estimating system for Orr Construction & Development",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1923",
+  "theme_color": "#0f1923",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/placeholder.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
