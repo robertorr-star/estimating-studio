@@ -203,6 +203,21 @@ export const updateEstimateStatus = async (
     .eq('id', estimateId);
   if (error) throw error;
 
+  // Sync client contact info from estimate_projects to estimates on approval
+  if (['robert_approved', 'approved', 'converted_to_project', 'active_project'].includes(status)) {
+    const { data: epData } = await supabase
+      .from('estimate_projects')
+      .select('client_email, client_phone')
+      .eq('id', estimateId)
+      .single();
+    if (epData?.client_email) {
+      await supabase.from('estimates').update({
+        client_email: epData.client_email,
+        client_phone: epData.client_phone || null,
+      } as any).eq('id', estimateId);
+    }
+  }
+
   // Auto-link: when activating, create a PM Studio job and set job_id
   if (status === 'converted_to_project' || status === 'active_project') {
     await autoCreateJob(estimateId);
@@ -214,7 +229,7 @@ const autoCreateJob = async (estimateId: string) => {
   try {
     const { data: est } = await supabase
       .from('estimates')
-      .select('id, project_name, project_address, client_name, total_contract_price, job_id')
+      .select('id, project_name, project_address, client_name, client_email, client_phone, total_contract_price, job_id')
       .eq('id', estimateId)
       .single();
 
@@ -236,6 +251,8 @@ const autoCreateJob = async (estimateId: string) => {
         name: est.project_name,
         address: est.project_address,
         client_name: est.client_name,
+        client_email: (est as any).client_email || null,
+        client_phone: (est as any).client_phone || null,
         contract_value: est.total_contract_price || 0,
         contract_remaining: est.total_contract_price || 0,
         phases_total: activeTrades?.length || 0,
