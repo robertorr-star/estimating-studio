@@ -429,6 +429,75 @@ const EstimateBuilder = () => {
     }
   };
 
+  const printProposal = () => {
+    const activeTrades = trades.filter(t => t.isActive);
+    const totalPrice = activeTrades.reduce((s, t) => s + t.totalPrice, 0);
+    const today = new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+    const fmt$ = (n: number) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2 });
+
+    const tradeSections = activeTrades.map(trade => {
+      const scopeLines = trade.lineItems.map(li => `<div style="font-size:11px;color:#333;margin:2px 0">${li.description || ""}</div>`).join("");
+      return `
+      <div style="margin-bottom: 0;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1.5px solid #222;padding:10px 0 6px;margin-top:16px">
+          <div style="font-size:13px;font-weight:bold">${trade.sortOrder || ""} ${trade.tradeName || ""} Group</div>
+          <div style="font-size:13px;font-style:italic;font-weight:bold">${fmt$(trade.totalPrice || 0)}</div>
+        </div>
+        <div style="padding-left:16px">
+          <div style="font-size:12px;font-weight:bold;font-style:italic;margin-bottom:4px">${trade.tradeName}-</div>
+          ${scopeLines}
+        </div>
+      </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Proposal — ${projectName}</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; color: #222; font-size: 12px; }
+  .page { max-width: 800px; margin: 0 auto; padding: 32px; }
+  .letterhead { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; border-bottom: 2px solid #1B4D1B; margin-bottom: 20px; }
+  .sig-block { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .sig-line { border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size: 10px; color: #555; }
+  .total-line { display:flex;justify-content:space-between;border-top:2px solid #222;border-bottom:2px solid #222;padding:10px 0;margin-top:20px;font-size:14px;font-weight:bold; }
+  @media print { body { margin: 0; } .no-print { display: none; } }
+</style></head><body><div class="page">
+<div class="letterhead">
+  <div>
+    <div style="font-weight:bold;font-size:14px">Orr Construction Company</div>
+    <div style="font-size:10px;color:#555">1977 Obispo Ave, Signal Hill, California 90755</div>
+    <div style="font-size:10px;color:#555">(562) 498-0224 · License #1028720</div>
+  </div>
+</div>
+<h2 style="font-size:18px;font-weight:bold;margin:0 0 6px">PROPOSAL SHEET</h2>
+<div style="font-size:14px;font-weight:bold;margin-bottom:6px">${projectAddress || ""}</div>
+<div style="font-size:13px;font-weight:bold;text-transform:uppercase;margin-bottom:20px;line-height:1.4">${projectName || ""}</div>
+${tradeSections}
+<div class="total-line">
+  <span>Total Price</span>
+  <span>${fmt$(totalPrice)}</span>
+</div>
+<div style="font-size:10px;color:#666;margin-top:12px;font-style:italic">
+  Note: This is just a rough estimate and may vary based on approved plans and scope of work to be done.
+</div>
+<div class="sig-block">
+  <div><div class="sig-line">Client Signature</div><div class="sig-line">Date</div></div>
+  <div><div class="sig-line">Client Signature</div><div class="sig-line">Date</div></div>
+  <div>
+    <div class="sig-line">Contractor Signature</div>
+    <div style="font-size:10px;color:#555;margin-top:4px">Robert Orr, President</div>
+    <div style="font-size:10px;color:#555">Orr Construction Company</div>
+    <div class="sig-line">Date: ${today}</div>
+  </div>
+</div>
+<button class="no-print" onclick="window.print()" style="margin-top:24px;padding:8px 20px;background:#1B4D1B;color:#C9A84C;border:none;font-weight:bold;cursor:pointer;font-size:12px">
+  PRINT / SAVE PDF
+</button>
+</div></body></html>`;
+
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); }
+  };
+
   const handleExportTakeoff = () => {
     const activeTrades = trades.filter(t => t.isActive);
     const totalContractPrice = activeTrades.reduce((s, t) => s + t.totalPrice, 0);
@@ -484,6 +553,12 @@ const EstimateBuilder = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto pl-10 sm:pl-0">
+            <button
+              onClick={printProposal}
+              className="flex items-center gap-1.5 px-3 py-2 text-[10px] sm:text-xs font-mono border border-border rounded hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors flex-1 sm:flex-initial justify-center"
+            >
+              🖨 <span className="hidden sm:inline">PRINT PROPOSAL</span><span className="sm:hidden">PROP</span>
+            </button>
             <button
               onClick={handleExportTakeoff}
               className="flex items-center gap-1.5 px-3 py-2 text-[10px] sm:text-xs font-mono border border-primary/50 rounded hover:bg-primary/10 text-primary transition-colors flex-1 sm:flex-initial justify-center"

@@ -74,6 +74,7 @@ const ApprovalBar = ({
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
 
   const marginFloor = MARGIN_FLOOR();
   const belowFloor = grossMargin > 0 && grossMargin < marginFloor;
@@ -85,6 +86,17 @@ const ApprovalBar = ({
       setOverrideOpen(true);
     } else {
       onStatusChange(action);
+    }
+  };
+
+  const handleConvert = async () => {
+    setConverting(true);
+    try {
+      await onStatusChange('active_project');
+    } catch {
+      // onStatusChange handles its own errors
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -317,10 +329,11 @@ const ApprovalBar = ({
           {/* Post-approval: Robert approved → can convert */}
           {status === 'robert_approved' && (
             <button
-              onClick={() => onStatusChange('active_project')}
-              className="flex items-center gap-2 px-4 min-h-[48px] sm:min-h-0 sm:py-1.5 text-[11px] sm:text-[10px] font-mono font-bold bg-teal-500/15 text-teal-400 border border-teal-500/30 rounded hover:bg-teal-500/25 active:bg-teal-500/35 transition-colors uppercase tracking-wider"
+              onClick={handleConvert}
+              disabled={converting}
+              className="flex items-center gap-2 px-4 min-h-[48px] sm:min-h-0 sm:py-1.5 text-[11px] sm:text-[10px] font-mono font-bold bg-teal-500/15 text-teal-400 border border-teal-500/30 rounded hover:bg-teal-500/25 active:bg-teal-500/35 transition-colors uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ArrowRight className="h-4 w-4 sm:h-3 sm:w-3" /> Activate as Project
+              <ArrowRight className="h-4 w-4 sm:h-3 sm:w-3" /> {converting ? 'CONVERTING...' : 'APPROVE & CONVERT'}
             </button>
           )}
         </div>
