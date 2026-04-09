@@ -474,8 +474,31 @@ const autoCreateJob = async (estimateId: string) => {
       .eq('id', estimateId);
 
     console.log(`PM job created: ${jobId} for estimate ${estimateId}`);
-  } catch (err) {
+
+    // Notify that job conversion succeeded
+    await supabase.from('notifications').insert({
+      type: 'general',
+      title: `Job created in PM Studio: ${(est as any).project_name}`,
+      body: `Estimate converted successfully. Leo can now access this job.`,
+      job_id: jobId,
+      job_name: (est as any).project_name,
+      from_user: 'System',
+      to_user: 'ALL',
+      priority: 'normal',
+      action_data: { tab: 'jobs', job_id: jobId },
+    } as any).catch(() => {});
+
+  } catch (err: any) {
     console.error('Auto-create job failed:', err);
+    // Notify failure
+    await supabase.from('notifications').insert({
+      type: 'general',
+      title: `JOB CREATION FAILED`,
+      body: `Estimate conversion failed. Check Supabase logs. Job was NOT created in PM Studio.`,
+      from_user: 'System',
+      to_user: 'Andy',
+      priority: 'critical',
+    } as any).catch(() => {});
   }
 };
 
