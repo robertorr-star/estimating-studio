@@ -26,6 +26,7 @@ import {
   updateEstimateStatus,
 } from '@/services/estimateService';
 import { sharedSupabase as supabase } from '@/integrations/supabase/sharedClient';
+import { generateContract, generateContractHtml } from '@/services/contractService';
 
 const generateId = () => crypto.randomUUID();
 
@@ -105,6 +106,8 @@ const EstimateBuilder = () => {
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [jurisdiction, setJurisdiction] = useState<any>(null);
   const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [generatingContract, setGeneratingContract] = useState(false);
+  const [contractPreview, setContractPreview] = useState<any>(null);
   const libraryTrade = libraryTradeId ? trades.find(t => t.id === libraryTradeId) : null;
 
   // Time tracking
@@ -619,6 +622,78 @@ ${tradeSections}
           const gm = totalContractPrice > 0 ? (totalProfit / totalContractPrice) * 100 : 0;
           return <ApprovalBar status={status} grossMargin={gm} builtBy={builtBy} builtCompletedAt={builtCompletedAt} sigfriedApprovedAt={sigfriedApprovedAt} leoApprovedAt={leoApprovedAt} robertApprovedAt={robertApprovedAt} onStatusChange={handleStatusChange} />;
         })()}
+
+        {/* Contract Generation Panel */}
+        {(status === 'robert_approved' || status === 'active_project') && (
+          <div className="rounded-lg border border-border bg-card p-4 mb-4">
+            <div className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-wider mb-3">Contract Generation</div>
+            {!contractPreview ? (
+              <button
+                onClick={async () => {
+                  if (!dbEstimateId) return;
+                  setGeneratingContract(true);
+                  const result = await generateContract(dbEstimateId);
+                  setGeneratingContract(false);
+                  if (result.success && result.previewData) {
+                    setContractPreview(result.previewData);
+                    toast({ title: 'Contract ready', description: 'Review below before printing or sending' });
+                  } else {
+                    toast({ title: 'Error', description: result.error || 'Failed to generate contract', variant: 'destructive' });
+                  }
+                }}
+                disabled={generatingContract}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-mono border border-primary/40 rounded hover:bg-primary/10 text-primary transition-colors disabled:opacity-50"
+              >
+                {generatingContract ? 'PREPARING...' : '📄 GENERATE CONTRACT →'}
+              </button>
+            ) : (
+              <div>
+                <div className="text-xs text-green-400 font-mono mb-3">✓ Contract ready — review before sending</div>
+                <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
+                  <div><span className="text-muted-foreground">Client: </span><span>{contractPreview.clientName}</span></div>
+                  <div><span className="text-muted-foreground">Contract: </span><span className="text-green-400">{contractPreview.contractPrice}</span></div>
+                  <div><span className="text-muted-foreground">Start: </span><span>{contractPreview.startDate || 'TBD'}</span></div>
+                  <div><span className="text-muted-foreground">End: </span><span>{contractPreview.endDate || 'TBD'}</span></div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      const html = generateContractHtml({
+                        effectiveDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                        ownerName: contractPreview.clientName || '',
+                        ownerAddress: contractPreview.projectAddress || '',
+                        projectAddress: contractPreview.projectAddress || '',
+                        contractPrice: contractPreview.contractPrice,
+                        downpayment: contractPreview.downpayment,
+                        payments: contractPreview.payments,
+                        startDate: contractPreview.startDate || '',
+                        endDate: contractPreview.endDate || '',
+                      });
+                      const win = window.open('', '_blank');
+                      if (win) { win.document.write(html); win.document.close(); }
+                      toast({ title: 'Contract opened', description: 'Use Print → Save as PDF to download' });
+                    }}
+                    className="px-3 py-1.5 text-[10px] font-mono border border-blue-500/30 rounded hover:bg-blue-500/10 text-blue-400 transition-colors"
+                  >
+                    PREVIEW / PRINT PDF
+                  </button>
+                  <button
+                    onClick={() => toast({ title: 'DocuSign', description: 'Configure DocuSign API credentials in Supabase app_settings to enable direct sending.' })}
+                    className="px-3 py-1.5 text-[10px] font-mono border border-primary/30 rounded hover:bg-primary/10 text-primary transition-colors"
+                  >
+                    SEND VIA DOCUSIGN →
+                  </button>
+                  <button
+                    onClick={() => setContractPreview(null)}
+                    className="px-3 py-1.5 text-[10px] font-mono border border-border rounded hover:bg-secondary/50 text-muted-foreground transition-colors"
+                  >
+                    RESET
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Project Info Bar */}
         <div className="rounded-lg border border-border bg-card p-4 mb-4">
