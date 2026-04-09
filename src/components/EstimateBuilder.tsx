@@ -25,6 +25,7 @@ import {
   recalcTradeTotals,
   updateEstimateStatus,
 } from '@/services/estimateService';
+import { sharedSupabase as supabase } from '@/integrations/supabase/sharedClient';
 
 const generateId = () => crypto.randomUUID();
 
@@ -100,6 +101,10 @@ const EstimateBuilder = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!!estimateId);
   const [libraryTradeId, setLibraryTradeId] = useState<string | null>(null);
+  const [projectCity, setProjectCity] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [jurisdiction, setJurisdiction] = useState<any>(null);
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const libraryTrade = libraryTradeId ? trades.find(t => t.id === libraryTradeId) : null;
 
   // Time tracking
@@ -176,6 +181,36 @@ const EstimateBuilder = () => {
     };
     load();
   }, [estimateId]);
+
+  const searchCities = async (query: string) => {
+    if (query.length < 2) { setCitySuggestions([]); return; }
+    const { data } = await supabase.from('jurisdictions')
+      .select('city_name').ilike('city_name', `${query}%`).limit(8);
+    setCitySuggestions((data || []).map((r: any) => r.city_name));
+  };
+
+  const detectJurisdiction = async (cityName: string) => {
+    setProjectCity(cityName);
+    setCitySuggestions([]);
+    if (!cityName) { setJurisdiction(null); return; }
+    const { data } = await supabase.from('jurisdictions')
+      .select('*').ilike('city_name', cityName).single();
+    setJurisdiction(data || null);
+    if (data && dbEstimateId) {
+      await supabase.from('estimate_projects').update({
+        project_city: data.city_name,
+        jurisdiction_id: data.id,
+        is_coastal: data.is_coastal,
+        is_oc_county: data.is_oc_county,
+      } as any).eq('id', dbEstimateId);
+    }
+  };
+
+  const handleCityInput = (val: string) => {
+    setProjectCity(val);
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
+    cityDebounceRef.current = setTimeout(() => searchCities(val), 300);
+  };
 
   const persistTradesAndTotals = async (estId: string, currentTrades: EstimateTrade[]) => {
     // Fetch DB trades to map by sort_order
@@ -600,6 +635,27 @@ ${tradeSections}
                 <input value={field.value} onChange={e => field.setter(e.target.value)} className="w-full bg-secondary/30 border border-border/50 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary/50 text-foreground" placeholder={field.placeholder} />
               </div>
             ))}
+            {/* City autocomplete with jurisdiction detection */}
+            <div className="relative">
+              <label className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider block mb-1">City / Jurisdiction</label>
+              <input
+                value={projectCity}
+                onChange={e => handleCityInput(e.target.value)}
+                onBlur={() => setTimeout(() => setCitySuggestions([]), 200)}
+                className="w-full bg-secondary/30 border border-border/50 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary/50 text-foreground"
+                placeholder="Signal Hill, Long Beach..."
+              />
+              {citySuggestions.length > 0 && (
+                <div className="absolute z-50 top-full left-0 w-full bg-card border border-border rounded shadow-lg mt-0.5">
+                  {citySuggestions.map(c => (
+                    <button key={c} onMouseDown={() => detectJurisdiction(c)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 text-foreground">
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div>
               <label className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider block mb-1">Built By</label>
               <select value={builtBy} onChange={e => setBuiltBy(e.target.value)} className="w-full bg-secondary/30 border border-border/50 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary/50 text-foreground">
@@ -621,6 +677,35 @@ ${tradeSections}
               <input type="date" value={projectStartDate} onChange={e => setProjectStartDate(e.target.value)} className="w-full bg-secondary/30 border border-border/50 rounded px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:border-primary/50 text-foreground" />
             </div>
           </div>
+          {/* Jurisdiction info */}
+          {jurisdiction && (
+            <div className="mt-3 p-2 border border-amber-500/30 bg-amber-500/5 text-xs space-y-1">
+              {jurisdiction.is_coastal && (
+                <div className="text-red-400 font-bold font-mono">⚠ COASTAL ZONE — California Coastal Commission CDP required</div>
+              )}
+              {jurisdiction.is_oc_county && (
+                <div className="text-orange-400 font-bold font-mono">⚠ OC COUNTY — 5-department process + HOA approval first</div>
+              )}
+              {jurisdiction.has_strong_hoa && !jurisdiction.is_oc_county && (
+                <div className="text-orange-400 font-mono">⚠ HOA approval required before permit submittal</div>
+              )}
+              {jurisdiction.has_historic_overlay && (
+                <div className="text-yellow-400 font-mono">⚠ Historic district overlay — verify if project is in overlay zone</div>
+              )}
+              <div className="text-muted-foreground font-mono">
+                Plan check: {jurisdiction.first_review_days_min}–{jurisdiction.first_review_days_max} days first review
+                {jurisdiction.school_district && ` · School: ${jurisdiction.school_district}`}
+                {jurisdiction.fire_authority && ` · Fire: ${jurisdiction.fire_authority}`}
+              </div>
+              {jurisdiction.special_requirements && (
+                <div className="text-muted-foreground font-mono text-[10px]">{jurisdiction.special_requirements}</div>
+              )}
+              {jurisdiction.plan_check_portal && (
+                <a href={jurisdiction.plan_check_portal} target="_blank" rel="noopener noreferrer"
+                  className="text-blue-400 underline font-mono text-[10px]">Building Dept Portal →</a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tab Navigation */}

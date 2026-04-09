@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Archive, XCircle, Trophy, CheckSquare, Square } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import KPIStrip from './KPIStrip';
 import StatusBadge from './StatusBadge';
 import { fetchEstimates, updateEstimateStatus } from '@/services/estimateService';
+import { sharedSupabase as supabase } from '@/integrations/supabase/sharedClient';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -33,6 +34,23 @@ const EstimatesDashboard = () => {
   const [activeTab, setActiveTab] = useState<FilterTab>('open');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogAction, setDialogAction] = useState<{ type: 'archive' | 'markLost' | 'markWon' | 'activate' | 'bulkArchive'; ids: string[] } | null>(null);
+  const [codeAlerts, setCodeAlerts] = useState<any[]>([]);
+  const [codeAlertsDismissed, setCodeAlertsDismissed] = useState(false);
+
+  useEffect(() => {
+    const loadCodeAlerts = async () => {
+      const ninetyDaysFromNow = new Date();
+      ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+      const { data } = await supabase
+        .from('code_updates')
+        .select('*')
+        .eq('status', 'upcoming')
+        .lte('state_effective_date', ninetyDaysFromNow.toISOString().split('T')[0])
+        .order('state_effective_date');
+      setCodeAlerts(data || []);
+    };
+    loadCodeAlerts();
+  }, []);
 
   const { data: dbEstimates, isLoading } = useQuery({
     queryKey: ['estimates'],
@@ -142,6 +160,39 @@ const EstimatesDashboard = () => {
 
   return (
     <div>
+      {codeAlerts.length > 0 && !codeAlertsDismissed && (
+        <div className="mb-4 p-3 border border-amber-500/30 bg-amber-500/5 rounded">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-mono text-[11px] font-bold text-amber-400 tracking-wider uppercase">
+              ⚠ Code Update Alert — {codeAlerts.length} new code cycle{codeAlerts.length > 1 ? 's' : ''} being adopted
+            </div>
+            <button onClick={() => setCodeAlertsDismissed(true)}
+              className="text-muted-foreground hover:text-foreground text-xs font-mono">DISMISS</button>
+          </div>
+          {codeAlerts.map(alert => (
+            <div key={alert.id} className="mb-2 p-2 bg-secondary/20 rounded">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs font-mono text-foreground">{alert.code_name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">Effective: {alert.state_effective_date}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">{(alert.key_changes || '').split('.')[0]}.</div>
+              <div className="flex gap-3 mt-1">
+                {alert.official_url && (
+                  <a href={alert.official_url} target="_blank" rel="noopener noreferrer"
+                    className="text-[10px] text-blue-400 underline font-mono">Official Source →</a>
+                )}
+                {alert.summary_url && (
+                  <a href={alert.summary_url} target="_blank" rel="noopener noreferrer"
+                    className="text-[10px] text-blue-400 underline font-mono">Summary →</a>
+                )}
+              </div>
+            </div>
+          ))}
+          <div className="text-[9px] text-muted-foreground font-mono mt-1">
+            IMPORTANT: Verify with each city which code edition they are currently accepting before designing.
+          </div>
+        </div>
+      )}
       <KPIStrip estimates={kpiEstimates} />
 
       {/* Filter Tabs */}
